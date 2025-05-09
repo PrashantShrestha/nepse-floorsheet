@@ -65,9 +65,16 @@ puppeteer.use(StealthPlugin());
       timeout: 20000,
     });
 
+    // ✅ Fix: Add a wait after clicking the Search button
+    // This ensures it doesn't scrape too early, especially in fast headless mode like GitHub Actions.
     await Promise.all([
-      btn.click(), // Click search
-      page.waitForResponse((res) => res.ok(), { timeout: 30000 }), // Wait for network response
+      btn.click(),
+      page.waitForFunction(
+        () =>
+          document.querySelectorAll("table.table-striped tbody tr").length >=
+          500,
+        { timeout: 30000 }
+      ),
     ]);
 
     // Ensure the table is loaded before proceeding
