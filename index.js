@@ -1,204 +1,161 @@
-const puppeteer = require("puppeteer-extra");
-const StealthPlugin = require("puppeteer-extra-plugin-stealth");
-const randomUseragent = require("random-useragent");
-const admin = require("firebase-admin");
-const serviceAccount = require("./serviceAccountKey.json");
+// Import required modules
+const puppeteer = require("puppeteer-extra"); // Enhanced puppeteer with plugins
+const StealthPlugin = require("puppeteer-extra-plugin-stealth"); // Avoid bot detection
+const fs = require("fs"); // File system module for writing to CSV
+const randomUseragent = require("random-useragent"); // Generates random user-agent strings
 
-// Initialize Firebase Admin SDK
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
-
-const db = admin.firestore();
-
-// Use puppeteer stealth plugin to reduce bot detection
+// Use stealth plugin to bypass bot detection
 puppeteer.use(StealthPlugin());
 
-/**
- * Check if data already exists in Firestore for a given document ID.
- * This helps skip re-uploading the same row and supports resuming.
- */
-async function checkIfDataExists(entryId) {
-  const dateKey = new Date().toISOString().split("T")[0]; // e.g., 2025-05-08
-  const entryDoc = await db.collection("floorsheet_by_date")
-    .doc(dateKey)
-    .collection("entries")
-    .doc(entryId)
-    .get();
-
-  return entryDoc.exists;
-}
-
 (async () => {
-  // --- CONFIGURATION ---
-  //const START_PAGE = 13; // 👈 Set the page number you want to resume from
-  const START_PAGE = parseInt(process.argv[2], 10) || 1;
-  let currentPage = START_PAGE;
-  let entryCounter = (START_PAGE - 1) * 500 + 1; // Estimate starting ID based on page
-  const dateStamp = new Date().toISOString().split("T")[0];
-
+  // Launch a Chromium browser instance
   const browser = await puppeteer.launch({
-    headless: false,
-    defaultViewport: null,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    headless: false, // Set to true to hide browser UI
+    defaultViewport: null, // Use full screen size
+    args: ["--no-sandbox", "--disable-setuid-sandbox"], // Necessary for some systems (e.g., Linux)
   });
 
+  // Open a new page in the browser
   const page = await browser.newPage();
+
+  // Create a filename based on the current date
+  const dateStamp = new Date().toISOString().split("T")[0];
+  const csvFile = `floor_sheet_data_${dateStamp}.csv`;
+
+  // Open a write stream to the CSV file in append mode
+  const logger = fs.createWriteStream(csvFile, { flags: "a" });
+
+  // If the file is new or empty, write CSV headers
+  if (!fs.existsSync(csvFile) || fs.statSync(csvFile).size === 0) {
+    logger.write("SN,ContractNo,Symbol,Buyer,Seller,Quantity,Rate,Amount\n");
+  }
+
+  // Set a random user-agent string to mimic a real browser
   await page.setUserAgent(randomUseragent.getRandom());
 
-  // Block unnecessary resources (images, fonts, etc.)
+  // Intercept requests and block unnecessary resources for faster loading
   await page.setRequestInterception(true);
   page.on("request", (req) => {
     const type = req.resourceType();
     if (["image", "stylesheet", "font", "media"].includes(type)) {
-      req.abort();
+      req.abort(); // Block heavy resources
     } else {
-      req.continue();
+      req.continue(); // Allow all other requests
     }
   });
 
-  console.log("🔄 Launching browser and navigating to NEPSE floor sheet...");
+  console.log("🔄 Starting floor sheet scraping...");
 
-  // Load the floor sheet page
+  // Navigate to NEPSE floor sheet page
   await page.goto("https://nepalstock.com.np/floor-sheet", {
-    waitUntil: "networkidle2",
+    waitUntil: "networkidle2", // Wait until network is idle
   });
 
+  // Try selecting 500 rows per page to minimize pagination
   try {
-    // Set rows per page to 500 (maximum)
-    await page.waitForSelector("div.box__filter--field select", { timeout: 20000 });
+    await page.waitForSelector("div.box__filter--field select", {
+      timeout: 20000,
+    });
+
+    // Select "500" from the dropdown (rows per page)
     await page.select("div.box__filter--field select", "500");
 
-    // Apply filter
-    const btn = await page.waitForSelector("button.box__filter--search", { timeout: 20000 });
+    // Click on the "Search" button to apply filter
+    const btn = await page.waitForSelector("button.box__filter--search", {
+      timeout: 20000,
+    });
+
     await Promise.all([
-      btn.click(),
-      page.waitForResponse((res) => res.ok(), { timeout: 30000 }),
+      btn.click(), // Click search
+      page.waitForResponse((res) => res.ok(), { timeout: 30000 }), // Wait for network response
     ]);
 
-    await page.waitForSelector("table.table-striped tbody tr", { timeout: 20000 });
+    // Ensure the table is loaded before proceeding
+    await page.waitForSelector("table.table-striped tbody tr", {
+      timeout: 20000,
+    });
   } catch (e) {
+    // If anything fails in setup, log error and exit
     console.warn(`❌ Failed to set initial filter: ${e.message}`);
     await browser.close();
     return;
   }
 
-  // Move to the desired page number if resuming
-  if (START_PAGE > 1) {
-    console.log(`⏩ Navigating to page ${START_PAGE}...`);
-    for (let i = 1; i < START_PAGE; i++) {
-      const isNextDisabled = await page.evaluate(() => {
-        const nextLi = document.querySelector("li.pagination-next");
-        return nextLi?.classList.contains("disabled");
-      });
+  let currentPage = 1; // Start from page 1
 
-      if (isNextDisabled) {
-        console.warn(`⛔ Cannot go to page ${START_PAGE}. End reached at page ${i}.`);
-        await browser.close();
-        return;
-      }
-
-      await Promise.all([
-        page.click("li.pagination-next > a"),
-        page.waitForFunction(() => {
-          const table = document.querySelector("table.table-striped tbody");
-          return table && table.children.length > 0;
-        }, { timeout: 60000 }),
-      ]);
-
-      const delay = Math.floor(Math.random() * 3000) + 1000;
-      await page.waitForTimeout(delay);
-    }
-  }
-
-  const entriesCollection = db
-    .collection("floorsheet_by_date")
-    .doc(dateStamp)
-    .collection("entries");
-
-  // 🔁 Main scraping loop
+  // Loop until "Next" is disabled
   while (true) {
     console.log(`➡️ Scraping page ${currentPage}`);
 
-    await page.waitForSelector("table.table-striped tbody tr", { timeout: 20000 });
-
-    // Extract table rows from the page
-    const rows = await page.evaluate(() => {
-      return Array.from(document.querySelectorAll("table.table-striped tbody tr"))
-        .map((tr) =>
-          Array.from(tr.querySelectorAll("td"))
-            .map((td) =>
-              `"${td.textContent.trim().replace(/"/g, '""').replace(/\.00$/, "")}`
-            ).join(",")
-        ).filter((row) => row.length > 0);
+    // Wait for table rows to be available
+    await page.waitForSelector("table.table-striped tbody tr", {
+      timeout: 20000,
     });
 
-    // ⏳ Process each row
-    for (const row of rows) {
-      const fields = row.split(",");
-      const paddedId = entryCounter.toString().padStart(7, "0");
+    // Extract data from table rows
+    const rows = await page.evaluate(() => {
+      return Array.from(
+        document.querySelectorAll("table.table-striped tbody tr")
+      )
+        .map((tr) =>
+          Array.from(tr.querySelectorAll("td"))
+            .map(
+              (td) =>
+                `"${td.textContent
+                  .trim()
+                  .replace(/"/g, '""') // Escape double quotes for CSV
+                  .replace(/\.00$/, "")}"` // Remove trailing .00
+            )
+            .join(",")
+        )
+        .filter((row) => row.length > 0); // Exclude empty rows
+    });
 
-      // Check if row already exists
-      const exists = await checkIfDataExists(paddedId);
-      if (exists) {
-        process.stdout.write(`\r⚠️ Skipping existing row with ID: ${paddedId}`);
-        entryCounter++;
-        continue;
-      }
+    // Append rows to CSV
+    rows.forEach((row) => logger.write(`${row}\n`));
+    console.log(`✅ Page ${currentPage}: Extracted ${rows.length} rows`);
 
-      // Sanitize and convert rate
-      const rate = parseFloat(fields[6].replace(/,/g, "").trim());
-
-      try {
-        // Upload to Firestore
-        await entriesCollection.doc(paddedId).set({
-          ContractNo: fields[1].replace(/"/g, ""),
-          Symbol: fields[2].replace(/"/g, ""),
-          Buyer: fields[3].replace(/"/g, ""),
-          Seller: fields[4].replace(/"/g, ""),
-          Quantity: parseInt(fields[5].replace(/"/g, "")),
-          Rate: rate,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        process.stdout.write(`\r✅ Last uploaded ID: ${paddedId}`);
-        entryCounter++;
-      } catch (e) {
-        console.warn(`⚠️ Failed to upload row: ${e.message}`);
-      }
-    }
-
-    console.log(`\n✅ Page ${currentPage}: Processed ${rows.length} rows`);
-
-    // ⏹️ Check if next page exists
+    // Check if the "Next" button is disabled
     const isNextDisabled = await page.evaluate(() => {
       const nextLi = document.querySelector("li.pagination-next");
       return nextLi?.classList.contains("disabled");
     });
 
+    // If no more pages, break loop
     if (isNextDisabled) {
       console.log("⛔ No more pages. Scraping complete.");
       break;
     }
 
+    // Try to go to next page
     try {
-      // Go to next page
+      const nextSelector = "li.pagination-next > a";
+
       await Promise.all([
-        page.click("li.pagination-next > a"),
-        page.waitForFunction(() => {
-          const table = document.querySelector("table.table-striped tbody");
-          return table && table.children.length > 0;
-        }, { timeout: 60000 }),
+        page.click(nextSelector), // Click on "Next"
+        page.waitForFunction(
+          () => {
+            const table = document.querySelector("table.table-striped tbody");
+            return table && table.children.length > 0; // Wait for table to load
+          },
+          { timeout: 60000 } // Wait up to 60 seconds
+        ),
       ]);
 
-      const delay = Math.floor(Math.random() * 4000) + 1000;
+      // Introduce random delay (2–10 seconds) to mimic human behavior
+      const delay = Math.floor(Math.random() * 8000) + 2000;
       await page.waitForTimeout(delay);
-      currentPage++;
+
+      currentPage++; // Move to next page
     } catch (e) {
+      // Handle errors in pagination
       console.warn(`⚠️ Failed to go to next page: ${e.message}`);
       break;
     }
   }
 
+  // Close CSV stream and browser
+  logger.close();
   await browser.close();
-  console.log("🎉 Finished scraping all available pages.");
+  console.log("🎉 Done scraping all available pages.");
 })();
