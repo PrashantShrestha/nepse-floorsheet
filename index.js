@@ -10,7 +10,7 @@ puppeteer.use(StealthPlugin());
 (async () => {
   // Launch a Chromium browser instance
   const browser = await puppeteer.launch({
-    headless: false, // Set to true to hide browser UI
+    headless: true, // Set to true to hide browser UI
     defaultViewport: null, // Use full screen size
     args: ["--no-sandbox", "--disable-setuid-sandbox"], // Necessary for some systems (e.g., Linux)
   });
