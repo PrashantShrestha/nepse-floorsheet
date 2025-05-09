@@ -1,0 +1,25 @@
+name: Run Puppeteer Script on Schedule
+
+on:
+  schedule:
+    - cron: '0 5 * * *'  # Runs daily at 04:00 UTC
+  workflow_dispatch:      # Allow manual run via GitHub web UI
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run Puppeteer Script
+        run: node scraper.js
