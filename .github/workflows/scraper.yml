@@ -2,7 +2,7 @@ name: Run Puppeteer Script on Schedule
 
 on:
   schedule:
-    - cron: '0 5 * * *'  # Runs daily at 04:00 UTC
+    - cron: '15 11 * * *'  # Runs daily at 11:15 UTC (5:00 PM Nepal Time)
   workflow_dispatch:      # Allow manual run via GitHub web UI
 
 jobs:
