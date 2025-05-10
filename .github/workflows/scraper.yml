@@ -29,3 +29,6 @@ jobs:
 
       - name: Upload CSV to Google Drive
         run: node uploadToDrive.js
+        env:
+          DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+
