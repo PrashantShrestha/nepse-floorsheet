@@ -96,7 +96,7 @@ puppeteer.use(StealthPlugin());
 
   
   let currentPage = 1; // Start from page 1
-  const MAX_PAGES = 2; // Limit to 2 pages for testing
+  const MAX_PAGES = 1; // Limit to 2 pages for testing
 
   // Loop until "Next" is disabled
   //while (true) { //this is till the next button is disabled
