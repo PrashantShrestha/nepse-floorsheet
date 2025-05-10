@@ -11,6 +11,7 @@
   "dependencies": {
     "firebase": "^11.7.1",
     "firebase-admin": "^13.3.0",
+    "googleapis": "^105.0.0",
     "proxy-chain": "^2.5.8",
     "puppeteer": "^13.5.2",
     "puppeteer-cluster": "^0.23.0",
