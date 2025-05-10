@@ -20,6 +20,14 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+        
+      - name: Skip Fridays and Saturdays
+        run: |
+          day=$(date -u +%u)
+          if [ "$day" -eq 5 ] || [ "$day" -eq 6 ]; then
+            echo "⏩ Skipping run on Friday or Saturday (Day $day)"
+            exit 0
+          fi
 
       - name: Decode service-account.json from base64
         run: echo "$SERVICE_ACCOUNT_BASE64" | base64 -d > service-account.json
