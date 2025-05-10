@@ -8,3 +8,6 @@ node_modules/
 service-account.json
 
 floor_sheet_data_2025-05-10.csv
+
+# Ignore encode.txt
+encoded.txt
