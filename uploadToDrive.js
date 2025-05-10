@@ -15,11 +15,16 @@ async function uploadToDrive() {
   const fileName = fs.readdirSync('./').find(f => f.endsWith('.csv')); // pick the .csv
   const filePath = path.join(__dirname, fileName);
 
+  // Check if the DRIVE_FOLDER_ID is set as an environment variable
+  const driveFolderId = process.env.DRIVE_FOLDER_ID || '1l3pzHWiS6zdUCX_AXssQsKGhuuo2Xe90'; // default ID
+
   const fileMetadata = {
     name: fileName,
+    parents: [driveFolderId],
     // this is parents: ['NEPSE Floor Sheets'], // optional: place it in specific folder replaced by parents: ['1l3pzHWiS6zdUCX_AXssQsKGhuuo2Xe90'], // <- actual folder ID
-    parents: ['1l3pzHWiS6zdUCX_AXssQsKGhuuo2Xe90'], // <- actual folder ID
+    //parents: ['1l3pzHWiS6zdUCX_AXssQsKGhuuo2Xe90'], // <- actual folder ID
     //parents: [process.env.DRIVE_FOLDER_ID], //To avoid hardcoding:
+    
   };
 
   const media = {
