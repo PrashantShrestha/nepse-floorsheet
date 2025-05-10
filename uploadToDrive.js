@@ -18,7 +18,7 @@ async function uploadToDrive() {
   const fileMetadata = {
     name: fileName,
     // this is parents: ['NEPSE Floor Sheets'], // optional: place it in specific folder replaced by parents: ['1l3pzHWiS6zdUCX_AXssQsKGhuuo2Xe90'], // <- actual folder ID
-    parents: ['1l3pzHWiS6zdUCX_AXssQsKGhuuo2Xe90'], // o// <- actual folder ID
+    parents: ['1l3pzHWiS6zdUCX_AXssQsKGhuuo2Xe90'], // <- actual folder ID
     //parents: [process.env.DRIVE_FOLDER_ID], //To avoid hardcoding:
   };
 
