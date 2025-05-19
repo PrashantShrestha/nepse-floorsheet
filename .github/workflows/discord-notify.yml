@@ -1,9 +1,9 @@
 name: Discord Notification
 
 on:
-  workflow_dispatch:  # Allow manual runs
+  workflow_dispatch:  # Allow manual run
   schedule:
-    - cron: '15 11 * * 0' # Runs daily at 5:00 Nepal Time
+    - cron: '15 11 * * 0' # Runs Sunday 5:00 PM Nepal Time
 
 permissions:
   contents: read
@@ -13,11 +13,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Send notification to Discord (Nepal Time)
-      run: |
-        NEPAL_TIME=$(TZ='Asia/Kathmandu' date '+%Y-%m-%d %H:%M:%S')
-        curl -H "Content-Type: application/json" \
-             -X POST \
-             -d "{\"content\": \"📢 GitHub Action ran successfully at $NEPAL_TIME! \-->discord-notify.yml<--\"}"
-             ${{ secrets.DISCORD_WEBHOOK_URL }}
-    
+      - name: Send notification to Discord (Nepal Time)
+        run: |
+          NEPAL_TIME=$(TZ='Asia/Kathmandu' date '+%A, %Y-%m-%d %H:%M:%S')
+          curl -H "Content-Type: application/json" \
+               -X POST \
+               -d "{\"content\": \"📢 GitHub Action ran successfully at $NEPAL_TIME! -->discord-notify.yml<--\"}" \
+               ${{ secrets.DISCORD_WEBHOOK_URL }}
