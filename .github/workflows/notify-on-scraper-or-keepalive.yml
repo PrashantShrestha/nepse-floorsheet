@@ -2,7 +2,7 @@ name: Notify on Workflow Completion
 
 on:
   workflow_run:
-    workflows: ["keep-alive", "scraper"]
+    workflows: ["Keep Repository Alive", "Run Puppeteer Script on Schedule"]
     types:
       - completed
   workflow_dispatch:  # ✅ allows manual run for testing
