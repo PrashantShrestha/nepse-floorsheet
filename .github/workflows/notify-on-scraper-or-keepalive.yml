@@ -5,6 +5,7 @@ on:
     workflows: ["keep-alive", "scraper"]
     types:
       - completed
+  workflow_dispatch:  # ✅ allows manual run for testing
 
 permissions:
   contents: read
@@ -14,16 +15,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Send Discord notification on success or failure
+      - name: Prepare Discord message
         run: |
-          STATUS="${{ github.event.workflow_run.conclusion }}"
-          WORKFLOW_NAME="${{ github.event.workflow.name }}"
+          # Set status and workflow name
+          STATUS="${{ github.event.workflow_run.conclusion || 'manual-run' }}"
+          WORKFLOW_NAME="${{ github.event.workflow.name || 'Manual Trigger' }}"
+
+          # Get Nepal time
+          NEPAL_TIME=$(TZ='Asia/Kathmandu' date '+%Y-%m-%d %H:%M:%S')
+
+          # Compose message
           if [ "$STATUS" == "success" ]; then
-            MESSAGE="✅ Workflow **$WORKFLOW_NAME** completed successfully!"
+            MESSAGE="✅ Workflow **$WORKFLOW_NAME** completed successfully at $NEPAL_TIME (Nepal Time)."
+          elif [ "$STATUS" == "manual-run" ]; then
+            MESSAGE="🧪 Manual test trigger at $NEPAL_TIME (Nepal Time)."
           else
-            MESSAGE="❌ Workflow **$WORKFLOW_NAME** failed! Status: $STATUS"
+            MESSAGE="❌ Workflow **$WORKFLOW_NAME** failed! Status: $STATUS (at $NEPAL_TIME Nepal Time)."
           fi
 
+          echo "Sending message: $MESSAGE"
+
+          # Send to Discord
           curl -H "Content-Type: application/json" \
                -X POST \
                -d "{\"content\": \"$MESSAGE\"}" \
