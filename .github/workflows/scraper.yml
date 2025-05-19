@@ -3,8 +3,7 @@ name: Run Puppeteer Script on Schedule
 on:
   schedule:
     # Only run on Sunday (7), Monday (1), Tuesday (2), Wednesday (3), Thursday (4) Both 0 and 7 can refer to Sunday
-    # Runs at 11:15 UTC (5:00 PM Nepal Time)
-    # Runs at 10:15 UTC (4:00 PM Nepal Time)
+    # Runs at 11:15 UTC (5:00 PM Nepal Time)    # Runs at 10:15 UTC (4:00 PM Nepal Time)
     - cron: '15 10 * * 0'  # Sunday
     - cron: '15 10 * * 1'  # Monday
     - cron: '15 10 * * 2'  # Tuesday
