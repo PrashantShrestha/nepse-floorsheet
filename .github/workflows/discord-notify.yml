@@ -18,6 +18,6 @@ jobs:
         NEPAL_TIME=$(TZ='Asia/Kathmandu' date '+%Y-%m-%d %H:%M:%S')
         curl -H "Content-Type: application/json" \
              -X POST \
-             -d "{\"content\": \"📢 GitHub Action ran successfully at $NEPAL_TIME!\"}" \
+             -d "{\"content\": \"📢 GitHub Action ran successfully at $NEPAL_TIME!\ -->discord-notify.yml<--"}" \
              ${{ secrets.DISCORD_WEBHOOK_URL }}
     
