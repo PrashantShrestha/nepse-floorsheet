@@ -13,9 +13,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Send notification to Discord
-        run: |
-          curl -H "Content-Type: application/json" \
-               -X POST \
-               -d '{"content":"📢 GitHub Action ran successfully on $(date -u)!"}' \
-               ${{ secrets.DISCORD_WEBHOOK_URL }}
+    - name: Send notification to Discord
+      run: |
+        curl -H "Content-Type: application/json" \
+             -X POST \
+             -d "{\"content\": \"📢 GitHub Action ran successfully on $(date -u)!\"}" \
+             ${{ secrets.DISCORD_WEBHOOK_URL }}
