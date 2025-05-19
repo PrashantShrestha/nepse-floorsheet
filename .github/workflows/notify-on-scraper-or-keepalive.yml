@@ -1,0 +1,30 @@
+name: Notify on Workflow Completion
+
+on:
+  workflow_run:
+    workflows: ["keep-alive", "scraper"]
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send Discord notification on success or failure
+        run: |
+          STATUS="${{ github.event.workflow_run.conclusion }}"
+          WORKFLOW_NAME="${{ github.event.workflow.name }}"
+          if [ "$STATUS" == "success" ]; then
+            MESSAGE="✅ Workflow **$WORKFLOW_NAME** completed successfully!"
+          else
+            MESSAGE="❌ Workflow **$WORKFLOW_NAME** failed! Status: $STATUS"
+          fi
+
+          curl -H "Content-Type: application/json" \
+               -X POST \
+               -d "{\"content\": \"$MESSAGE\"}" \
+               ${{ secrets.DISCORD_WEBHOOK_URL }}
