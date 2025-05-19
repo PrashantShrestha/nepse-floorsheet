@@ -2,7 +2,7 @@ name: Keep Repository Alive
 
 on:
   schedule:
-    - cron: '0 0 */50 * *'  # Every 50 days at 00:00 UTC
+    - cron: '0 0 */15 * *'  # Every 50 days at 00:00 UTC changed to 15
   workflow_dispatch:
 
 permissions:
