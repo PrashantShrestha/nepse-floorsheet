@@ -23,9 +23,9 @@ jobs:
           WORKFLOW="${{ github.event.workflow.name }}"
 
           if [ "$STATUS" == "success" ]; then
-            MESSAGE="✅ **$WORKFLOW** succeeded on 🗓️ *$NEPAL_TIME*! -->notify-on-scraper-status.yml<--"
+            MESSAGE="✅ **$WORKFLOW** succeeded on 🗓️ *$NEPAL_TIME*! -->3. notify-on-scraper-status.yml<--"
           else
-            MESSAGE="❌ **$WORKFLOW** failed on 🗓️ *$NEPAL_TIME*! -->notify-on-scraper-status.yml<--"
+            MESSAGE="❌ **$WORKFLOW** failed on 🗓️ *$NEPAL_TIME*! -->4. notify-on-scraper-status.yml<--"
           fi
 
           echo "message=$MESSAGE" >> "$GITHUB_OUTPUT"
