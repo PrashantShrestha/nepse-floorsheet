@@ -26,11 +26,11 @@ jobs:
 
           # Compose message
           if [ "$STATUS" == "success" ]; then
-            MESSAGE="✅ WORKFLOW **$WORKFLOW_NAME** completed SUCESSFULLY at $NEPAL_TIME (Nepal Time)."
+            MESSAGE="✅ WORKFLOW **$WORKFLOW_NAME** completed SUCESSFULLY at $NEPAL_TIME."
           elif [ "$STATUS" == "manual-run" ]; then
-            MESSAGE="🧪 MANUAL TEST trigger at $NEPAL_TIME (Nepal Time)."
+            MESSAGE="🧪 MANUAL TEST trigger at $NEPAL_TIME."
           else
-            MESSAGE="❌ WORKFLOW **$WORKFLOW_NAME** FAILED! Status: $STATUS (at $NEPAL_TIME Nepal Time)."
+            MESSAGE="❌ WORKFLOW **$WORKFLOW_NAME** FAILED! Status: $STATUS (at $NEPAL_TIME )."
           fi
 
           echo "Sending message: $MESSAGE"
