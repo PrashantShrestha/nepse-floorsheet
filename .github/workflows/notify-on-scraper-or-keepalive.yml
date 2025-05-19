@@ -26,11 +26,11 @@ jobs:
 
           # Compose message
           if [ "$STATUS" == "success" ]; then
-            MESSAGE="✅ WORKFLOW **$WORKFLOW_NAME** completed SUCESSFULLY at $NEPAL_TIME."
+            MESSAGE="✅ WORKFLOW **$WORKFLOW_NAME** completed SUCESSFULLY at $NEPAL_TIME -->dnotify-on-scraper-or-keepalive.yml<--."
           elif [ "$STATUS" == "manual-run" ]; then
             MESSAGE="🧪 MANUAL TEST trigger at $NEPAL_TIME."
           else
-            MESSAGE="❌ WORKFLOW **$WORKFLOW_NAME** FAILED! Status: $STATUS (at $NEPAL_TIME )."
+            MESSAGE="❌ WORKFLOW **$WORKFLOW_NAME** FAILED! Status: $STATUS at $NEPAL_TIME -->notify-on-scraper-or-keepalive.yml<--."
           fi
 
           echo "Sending message: $MESSAGE"
