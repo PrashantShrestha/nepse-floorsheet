@@ -3,7 +3,10 @@ name: Keep Repository Alive
 on:
   schedule:
     - cron: '0 0 */50 * *'  # Every 50 days at 00:00 UTC
-  workflow_dispatch:  # Also allow manual triggering if needed
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   keep-alive:
