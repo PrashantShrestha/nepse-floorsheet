@@ -2,7 +2,7 @@ name: Notify Scraper Status
 
 on:
   workflow_run:
-    workflows: ["scraper"]
+    workflows: ["Run Puppeteer Script on Schedule"]
     types:
       - completed
   workflow_dispatch:  # 👈 Manual run enabled here
