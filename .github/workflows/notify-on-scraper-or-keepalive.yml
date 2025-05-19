@@ -28,7 +28,7 @@ jobs:
           if [ "$STATUS" == "success" ]; then
             MESSAGE="✅ WORKFLOW **$WORKFLOW_NAME** completed SUCESSFULLY at $NEPAL_TIME -->1. notify-on-scraper-or-keepalive.yml<--."
           elif [ "$STATUS" == "manual-run" ]; then
-            MESSAGE="🧪 MANUAL TEST trigger at $NEPAL_TIME."
+            MESSAGE="🧪 MANUAL TEST trigger at $NEPAL_TIME -->1. notify-on-scraper-or-keepalive.yml<--."
           else
             MESSAGE="❌ WORKFLOW **$WORKFLOW_NAME** FAILED! Status: $STATUS at $NEPAL_TIME -->2. notify-on-scraper-or-keepalive.yml<--."
           fi
