@@ -1,0 +1,21 @@
+name: Discord Notification
+
+on:
+  workflow_dispatch:  # Allow manual runs
+  schedule:
+    - cron: '15 11 * * 0' # Runs daily at 5:00 Nepal Time
+
+permissions:
+  contents: read
+
+jobs:
+  notify-discord:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send notification to Discord
+        run: |
+          curl -H "Content-Type: application/json" \
+               -X POST \
+               -d '{"content":"📢 GitHub Action ran successfully on $(date -u)!"}' \
+               ${{ secrets.DISCORD_WEBHOOK_URL }}
