@@ -1,0 +1,38 @@
+name: Notify Scraper Status
+
+on:
+  workflow_run:
+    workflows: ["scraper"]
+    types:
+      - completed
+  workflow_dispatch:  # 👈 Manual run enabled here
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Prepare Nepal time and status message
+        id: vars
+        run: |
+          NEPAL_TIME=$(TZ='Asia/Kathmandu' date '+%A, %Y-%m-%d %H:%M:%S')
+          STATUS="${{ github.event.workflow_run.conclusion }}"
+          WORKFLOW="${{ github.event.workflow.name }}"
+
+          if [ "$STATUS" == "success" ]; then
+            MESSAGE="✅ **$WORKFLOW** succeeded on 🗓️ *$NEPAL_TIME*!"
+          else
+            MESSAGE="❌ **$WORKFLOW** failed on 🗓️ *$NEPAL_TIME*!"
+          fi
+
+          echo "message=$MESSAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Send Discord notification
+        run: |
+          curl -H "Content-Type: application/json" \
+               -X POST \
+               -d "{\"content\": \"${{ steps.vars.outputs.message }}\"}" \
+               ${{ secrets.DISCORD_WEBHOOK_URL }}
