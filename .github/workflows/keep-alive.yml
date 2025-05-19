@@ -1,1 +1,26 @@
+name: Keep Repository Alive
 
+on:
+  schedule:
+    - cron: '0 0 */50 * *'  # Every 50 days at 00:00 UTC
+  workflow_dispatch:  # Also allow manual triggering if needed
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create keep-alive commit
+        run: |
+          echo "🕒 Keep-alive ping at $(date -u)" >> keepalive.log
+          git add keepalive.log
+          git commit -m "chore: 🤖 keep-alive commit" || echo "Nothing to commit"
+          git push
