@@ -28,7 +28,7 @@ jobs:
           if [ "$STATUS" == "success" ]; then
             MESSAGE="✅ WORKFLOW **$WORKFLOW_NAME** completed SUCESSFULLY at $NEPAL_TIME (Nepal Time)."
           elif [ "$STATUS" == "manual-run" ]; then
-            MESSAGE="🧪 Manual test trigger at $NEPAL_TIME (Nepal Time)."
+            MESSAGE="🧪 MANUAL TEST trigger at $NEPAL_TIME (Nepal Time)."
           else
             MESSAGE="❌ WORKFLOW **$WORKFLOW_NAME** FAILED! Status: $STATUS (at $NEPAL_TIME Nepal Time)."
           fi
