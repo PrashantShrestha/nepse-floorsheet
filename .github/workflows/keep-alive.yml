@@ -20,7 +20,7 @@ jobs:
 
       - name: Create keep-alive commit
         run: |
-          echo "🕒 Keep-alive ping at $(date -u)" >> keepalive.log
-          git add keepalive.log
+          echo "🕒 Keep-alive ping at $(date -u)" >> .keepalive
+          git add .keepalive
           git commit -m "chore: 🤖 keep-alive commit" || echo "Nothing to commit"
           git push
