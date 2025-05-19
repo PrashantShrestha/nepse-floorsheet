@@ -13,9 +13,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Send notification to Discord
+    - name: Send notification to Discord (Nepal Time)
       run: |
+        NEPAL_TIME=$(TZ='Asia/Kathmandu' date '+%Y-%m-%d %H:%M:%S')
         curl -H "Content-Type: application/json" \
              -X POST \
-             -d "{\"content\": \"📢 GitHub Action ran successfully on $(date -u)!\"}" \
+             -d "{\"content\": \"📢 GitHub Action ran successfully at $NEPAL_TIME (Nepal Time)!\"}" \
              ${{ secrets.DISCORD_WEBHOOK_URL }}
+    
