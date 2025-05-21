@@ -110,15 +110,16 @@ puppeteer.use(StealthPlugin());
     rows.forEach((row) => logger.write(`${row}\n`));
     console.log(`✅ Page ${currentPage}: Extracted ${rows.length} rows`);
 
-    // Wait for the pagination "Next" selector to be present
+   // Wait for pagination control
     await page.waitForSelector("li.pagination-next", { timeout: 10000 });
 
-    // Check if "Next" button is disabled
-    const isNextDisabled = await page.evaluate(() => {
-      const next = document.querySelector("li.pagination-next");
-      return next && next.classList.contains("disabled");
-    });
-
+  // Check if the <a> tag exists inside the next button
+  const isNextDisabled = await page.evaluate(() => {
+    const nextLi = document.querySelector("li.pagination-next");
+    const nextAnchor = nextLi?.querySelector("a");
+    return !nextAnchor;
+  });
+    
     // Exit loop if no more pages
     if (isNextDisabled) {
       console.log("⛔ 'Next' button is disabled. Scraping complete.");
