@@ -1,11 +1,14 @@
+// Import required modules
 const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const fs = require("fs");
 const randomUseragent = require("random-useragent");
 
+// Use stealth plugin to bypass bot detection
 puppeteer.use(StealthPlugin());
 
 (async () => {
+  // Launch headless browser
   const browser = await puppeteer.launch({
     headless: true,
     defaultViewport: null,
@@ -13,8 +16,23 @@ puppeteer.use(StealthPlugin());
   });
 
   const page = await browser.newPage();
+
+  // Generate filename based on date
+  const dateStamp = new Date().toISOString().split("T")[0];
+  const csvFile = `floor_sheet_data_${dateStamp}.csv`;
+
+  // Open write stream for CSV
+  const logger = fs.createWriteStream(csvFile, { flags: "a" });
+
+  // Write header if new file
+  if (!fs.existsSync(csvFile) || fs.statSync(csvFile).size === 0) {
+    logger.write("SN,ContractNo,Symbol,Buyer,Seller,Quantity,Rate,Amount\n");
+  }
+
+  // Set random user-agent
   await page.setUserAgent(randomUseragent.getRandom());
 
+  // Block unnecessary resources for speed
   await page.setRequestInterception(true);
   page.on("request", (req) => {
     const type = req.resourceType();
@@ -25,116 +43,116 @@ puppeteer.use(StealthPlugin());
     }
   });
 
-  const date = new Date().toISOString().split("T")[0];
-  const csvFilePath = `floor_sheet_data_${date}.csv`;
-  const writeStream = fs.createWriteStream(csvFilePath, { flags: "a" });
-
-  // Write CSV headers if file is new or empty
-  if (!fs.existsSync(csvFilePath) || fs.statSync(csvFilePath).size === 0) {
-    writeStream.write("SN,ContractNo,Symbol,Buyer,Seller,Quantity,Rate,Amount\n");
-  }
-
   console.log("🔄 Starting floor sheet scraping...");
 
-  try {
-    await page.goto("https://nepalstock.com.np/floor-sheet", {
-      waitUntil: "networkidle2",
-    });
+  // Go to NEPSE floor sheet page
+  await page.goto("https://nepalstock.com.np/floor-sheet", {
+    waitUntil: "networkidle2",
+  });
 
-    // Select 500 rows per page
+  try {
+    // Wait for dropdown and select "500" rows per page
     await page.waitForSelector("div.box__filter--field select", {
       timeout: 20000,
     });
     await page.select("div.box__filter--field select", "500");
 
-    // Wait for the search button and click it
-    const searchButton = await page.waitForSelector("button.box__filter--search", {
+    // Click the search button and wait for at least 500 rows to load
+    const btn = await page.waitForSelector("button.box__filter--search", {
       timeout: 20000,
     });
 
-    // Wait for data to load after search
     await Promise.all([
-      searchButton.click(),
+      btn.click(),
       page.waitForFunction(
         () =>
-          document.querySelectorAll("table.table-striped tbody tr").length >= 500,
+          document.querySelectorAll("table.table-striped tbody tr").length >=
+          500,
         { timeout: 30000 }
       ),
     ]);
-  } catch (error) {
-    console.error(`❌ Initial page setup failed: ${error.message}`);
+  } catch (e) {
+    console.warn(`❌ Failed to set initial filter: ${e.message}`);
     await browser.close();
     return;
   }
-
-  let pageCounter = 1;
+  // change currentPages = 170 to 1 before final
+  let currentPage = 170;
 
   while (true) {
-    console.log(`➡️ Scraping page ${pageCounter}...`);
+    console.log(`➡️ Scraping page ${currentPage}`);
 
-    try {
-      await page.waitForSelector("table.table-striped tbody tr", {
-        timeout: 20000,
-      });
+    // Wait for table rows
+    await page.waitForSelector("table.table-striped tbody tr", {
+      timeout: 20000,
+    });
 
-      // Extract rows from the current page
-      const rows = await page.evaluate(() =>
-        Array.from(document.querySelectorAll("table.table-striped tbody tr"))
-          .map((tr) =>
-            Array.from(tr.querySelectorAll("td"))
-              .map((td) =>
+    // Extract table data
+    const rows = await page.evaluate(() => {
+      return Array.from(
+        document.querySelectorAll("table.table-striped tbody tr")
+      )
+        .map((tr) =>
+          Array.from(tr.querySelectorAll("td"))
+            .map(
+              (td) =>
                 `"${td.textContent
                   .trim()
                   .replace(/"/g, '""')
                   .replace(/\.00$/, "")}"`
-              )
-              .join(",")
-          )
-          .filter((row) => row.length > 0)
-      );
+            )
+            .join(",")
+        )
+        .filter((row) => row.length > 0);
+    });
 
-      // Write rows to CSV
-      rows.forEach((row) => writeStream.write(`${row}\n`));
-      console.log(`✅ Extracted ${rows.length} rows from page ${pageCounter}`);
-    } catch (error) {
-      console.warn(`❌ Error extracting rows from page ${pageCounter}: ${error.message}`);
-      break;
-    }
+    // Write to CSV
+    rows.forEach((row) => logger.write(`${row}\n`));
+    console.log(`✅ Page ${currentPage}: Extracted ${rows.length} rows`);
+
+    // Wait for the pagination "Next" selector to be present
+    await page.waitForSelector("li.pagination-next", { timeout: 10000 });
 
     // Check if "Next" button is disabled
     const isNextDisabled = await page.evaluate(() => {
-      const nextLi = document.querySelector("li.pagination-next");
-      return nextLi?.classList.contains("disabled") || false;
+      const next = document.querySelector("li.pagination-next");
+      return next && next.classList.contains("disabled");
     });
 
+    // Exit loop if no more pages
     if (isNextDisabled) {
-      console.log("⛔ No more pages to scrape. Exiting.");
+      console.log("⛔ 'Next' button is disabled. Scraping complete.");
       break;
     }
 
+    // Go to next page
     try {
       const nextSelector = "li.pagination-next > a";
 
-      // Click the next button and wait for table to refresh
       await Promise.all([
         page.click(nextSelector),
-        page.waitForFunction(() => {
-          const table = document.querySelector("table.table-striped tbody");
-          return table && table.children.length > 0;
-        }, { timeout: 60000 }),
+        page.waitForFunction(
+          () => {
+            const table = document.querySelector("table.table-striped tbody");
+            return table && table.children.length > 0;
+          },
+          { timeout: 60000 }
+        ),
       ]);
 
-      // Random delay to mimic human interaction
+      // Random delay (2–10 sec) to mimic human behavior
       const delay = Math.floor(Math.random() * 8000) + 2000;
       await page.waitForTimeout(delay);
-      pageCounter++;
-    } catch (error) {
-      console.warn(`⚠️ Error going to next page: ${error.message}`);
+
+      currentPage++;
+    } catch (e) {
+      console.warn(`⚠️ Failed to go to next page: ${e.message}`);
       break;
     }
   }
 
-  writeStream.close();
+  // Cleanup
+  logger.close();
   await browser.close();
-  console.log("🎉 Done scraping all available pages..");
+  console.log("🎉 Done scraping all available pages.");
 })();
