@@ -34,7 +34,7 @@ puppeteer.use(StealthPlugin());
     writeStream.write("SN,ContractNo,Symbol,Buyer,Seller,Quantity,Rate,Amount\n");
   }
 
-  console.log("Starting floor sheet scraping...");
+  console.log("🔄 Starting floor sheet scraping...");
 
   try {
     await page.goto("https://nepalstock.com.np/floor-sheet", {
@@ -62,7 +62,7 @@ puppeteer.use(StealthPlugin());
       ),
     ]);
   } catch (error) {
-    console.error(`Initial page setup failed: ${error.message}`);
+    console.error(`❌ Initial page setup failed: ${error.message}`);
     await browser.close();
     return;
   }
@@ -70,7 +70,7 @@ puppeteer.use(StealthPlugin());
   let pageCounter = 1;
 
   while (true) {
-    console.log(`Scraping page ${pageCounter}...`);
+    console.log(`➡️ Scraping page ${pageCounter}...`);
 
     try {
       await page.waitForSelector("table.table-striped tbody tr", {
@@ -95,9 +95,9 @@ puppeteer.use(StealthPlugin());
 
       // Write rows to CSV
       rows.forEach((row) => writeStream.write(`${row}\n`));
-      console.log(`Extracted ${rows.length} rows from page ${pageCounter}`);
+      console.log(`✅ Extracted ${rows.length} rows from page ${pageCounter}`);
     } catch (error) {
-      console.warn(`Error extracting rows from page ${pageCounter}: ${error.message}`);
+      console.warn(`❌ Error extracting rows from page ${pageCounter}: ${error.message}`);
       break;
     }
 
@@ -108,7 +108,7 @@ puppeteer.use(StealthPlugin());
     });
 
     if (isNextDisabled) {
-      console.log("No more pages to scrape. Exiting.");
+      console.log("⛔ No more pages to scrape. Exiting.");
       break;
     }
 
@@ -129,12 +129,12 @@ puppeteer.use(StealthPlugin());
       await page.waitForTimeout(delay);
       pageCounter++;
     } catch (error) {
-      console.warn(`Error going to next page: ${error.message}`);
+      console.warn(`⚠️ Error going to next page: ${error.message}`);
       break;
     }
   }
 
   writeStream.close();
   await browser.close();
-  console.log("Scraping finished.");
+  console.log("🎉 Done scraping all available pages..");
 })();
