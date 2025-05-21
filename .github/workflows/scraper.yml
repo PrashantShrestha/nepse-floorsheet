@@ -44,9 +44,9 @@ jobs:
           DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
 
       # ✅ Upload screenshots for debugging (optional)
-      - name: Upload debug screenshots
-        if: always() # Always upload even if the script fails
-        uses: actions/upload-artifact@v4
-        with:
-          name: pagination-screenshots
-          path: '*.png'
+      # - name: Upload debug screenshots
+      #   if: always() # Always upload even if the script fails
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: pagination-screenshots
+      #     path: '*.png'
