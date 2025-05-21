@@ -88,7 +88,7 @@ puppeteer.use(StealthPlugin());
     return;
   }
 
-  let currentPage = 1; // Start from page 1
+  let currentPage = 175; // Start from page 1
 
   // Loop until "Next" is disabled
   while (true) {
