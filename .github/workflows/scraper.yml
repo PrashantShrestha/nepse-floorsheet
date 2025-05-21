@@ -5,7 +5,7 @@ on:
     # Only run on Sunday (7), Monday (1), Tuesday (2), Wednesday (3), Thursday (4) Both 0 and 7 can refer to Sunday
     # Runs at 11:15 UTC (5:00 PM Nepal Time)    # Runs at 10:15 UTC (4:00 PM Nepal Time) # Runs at 10:30 UTC (4:15 PM Nepal Time)
     # - cron: '10 10 * * 0-4'  # Sunday to Thursday at 10:30 UTC (4:15 PM Nepal)
-    - cron: '10 0 * * 0-4'    # Runs at 10:15 UTC (6:10 PM Nepal Time)
+    - cron: '25 12 * * 0-4'    # Runs at 10:15 UTC (6:10 PM Nepal Time)
     # - cron: '30 10 * * 0'  # Sunday
     # - cron: '30 10 * * 1'  # Monday
     # - cron: '30 10 * * 2'  # Tuesday
