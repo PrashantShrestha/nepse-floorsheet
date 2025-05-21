@@ -2,10 +2,8 @@ name: Run Puppeteer Script on Schedule
 
 on:
   schedule:
-    # Only run on Sunday (7), Monday (1), Tuesday (2), Wednesday (3), Thursday (4) Both 0 and 7 can refer to Sunday
-    # Runs at 11:15 UTC (5:00 PM Nepal Time)    # Runs at 10:15 UTC (4:00 PM Nepal Time) # Runs at 10:30 UTC (4:15 PM Nepal Time)
     - cron: '30 10 * * 0-4'    # Runs at 10:30 UTC (4:15 PM Nepal Time)
-  workflow_dispatch:      # Allow manual run via GitHub web UI
+  workflow_dispatch:
 
 jobs:
   run-scraper:
@@ -44,3 +42,11 @@ jobs:
         run: node uploadToDrive.js
         env:
           DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+
+      # ✅ Upload screenshots for debugging (optional)
+      - name: Upload debug screenshots
+        if: always() # Always upload even if the script fails
+        uses: actions/upload-artifact@v3
+        with:
+          name: pagination-screenshots
+          path: '*.png'
