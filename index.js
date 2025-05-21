@@ -76,8 +76,8 @@ puppeteer.use(StealthPlugin());
     await browser.close();
     return;
   }
-  // change currentPages = 170 to 1 before final
-  let currentPage = 170;
+  // change currentPages = 175 to 1 before final
+  let currentPage = 175;
 
   while (true) {
     console.log(`➡️ Scraping page ${currentPage}`);
