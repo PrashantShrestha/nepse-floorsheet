@@ -45,15 +45,16 @@ puppeteer.use(StealthPlugin());
     await page.select("div.box__filter--field select", "500");
 
     const btn = await page.waitForSelector("button.box__filter--search", { timeout: 20000 });
-    
+
     await Promise.all([
       btn.click(),
-      page.waitForFunction(
-        () => document.querySelectorAll("table.table-striped tbody tr").length > 0,
+      page.waitForResponse(res =>
+        res.url().includes("/api/floorsheet") && res.status() === 200,
         { timeout: 30000 }
       ),
     ]);
 
+    await page.waitForTimeout(1000);
   } catch (e) {
     console.warn(`❌ Failed to initialize table: ${e.message}`);
     await browser.close();
