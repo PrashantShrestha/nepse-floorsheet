@@ -16,8 +16,7 @@ puppeteer.use(StealthPlugin());
       "--disable-dev-shm-usage",
       "--disable-gpu",
       "--single-process",
-      "--no-zygote",
-      "--max-old-space-size=2048"
+      "--no-zygote"
     ],
   });
 
@@ -76,9 +75,6 @@ puppeteer.use(StealthPlugin());
     console.log("🔍 Waiting for filter elements...");
     await page.waitForSelector("div.box__filter--field", { timeout: 60000 });
     
-    // Debugging: Capture screenshot
-    await page.screenshot({ path: "debug-selector.png" });
-
     console.log("📊 Setting rows per page to 500...");
     await page.select("div.box__filter--field select", "500");
 
@@ -101,9 +97,6 @@ puppeteer.use(StealthPlugin());
 
   } catch (e) {
     console.error(`❌ Initialization failed: ${e.message}`);
-    await page.screenshot({ path: "init-failure.png" });
-    const content = await page.content();
-    fs.writeFileSync("page-dump.html", content);
     await browser.close();
     return;
   }
@@ -119,7 +112,6 @@ puppeteer.use(StealthPlugin());
       });
     } catch (e) {
       console.warn(`⚠️ Timed out waiting for rows: ${e.message}`);
-      await page.screenshot({ path: `page-${currentPage}-timeout.png` });
       break;
     }
 
@@ -162,21 +154,19 @@ puppeteer.use(StealthPlugin());
       
       // Wait for new page to load
       await page.waitForFunction(
-        () => {
-          const spinner = document.querySelector(".loading-spinner");
-          return !spinner || spinner.style.display === "none";
+        (currentPageCount) => {
+          const newPageCount = document.querySelectorAll("table.table-striped tbody tr").length;
+          return newPageCount > 0 && newPageCount !== currentPageCount;
         },
-        { timeout: 60000, polling: 1000 }
+        { timeout: 60000, polling: 1000 },
+        rows.length  // Pass current row count as argument
       );
-      
-      await page.waitForSelector("table.table-striped tbody tr", { timeout: 30000 });
       
       // Human-like delay
       await page.waitForTimeout(Math.floor(Math.random() * 8000) + 2000);
       currentPage++;
     } catch (e) {
       console.warn(`⚠️ Page navigation failed: ${e.message}`);
-      await page.screenshot({ path: `navigation-failure-page-${currentPage}.png` });
       break;
     }
   }
