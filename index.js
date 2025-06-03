@@ -45,11 +45,11 @@ puppeteer.use(StealthPlugin());
     await page.select("div.box__filter--field select", "500");
 
     const btn = await page.waitForSelector("button.box__filter--search", { timeout: 20000 });
-
+    
     await Promise.all([
       btn.click(),
-      page.waitForResponse(res =>
-        res.url().includes("/api/floorsheet") && res.status() === 200,
+      page.waitForFunction(
+        () => document.querySelectorAll("table.table-striped tbody tr").length > 0,
         { timeout: 30000 }
       ),
     ]);
