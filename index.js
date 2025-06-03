@@ -54,7 +54,6 @@ puppeteer.use(StealthPlugin());
       ),
     ]);
 
-    await page.waitForTimeout(1000);
   } catch (e) {
     console.warn(`❌ Failed to initialize table: ${e.message}`);
     await browser.close();
