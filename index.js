@@ -6,26 +6,13 @@ const randomUseragent = require("random-useragent");
 puppeteer.use(StealthPlugin());
 
 (async () => {
-  // Launch browser with CI optimization flags
   const browser = await puppeteer.launch({
-    headless: "new",  // Use new Headless mode
+    headless: true,
     defaultViewport: null,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-      "--single-process",
-      "--no-zygote"
-    ],
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
   });
 
   const page = await browser.newPage();
-  
-  // Set extended timeouts for CI environment
-  page.setDefaultTimeout(60000);
-  page.setDefaultNavigationTimeout(90000);
-
   await page.setViewport({ width: 1280, height: 1200 });
 
   const dateStamp = new Date().toISOString().split("T")[0];
@@ -49,54 +36,25 @@ puppeteer.use(StealthPlugin());
   });
 
   console.log("🔄 Navigating to NEPSE floor sheet...");
-  
-  // Navigation with retry logic
-  let navigationSuccess = false;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      await page.goto("https://nepalstock.com.np/floor-sheet", {
-        waitUntil: "domcontentloaded",
-        timeout: 90000
-      });
-      navigationSuccess = true;
-      break;
-    } catch (err) {
-      console.log(`⚠️ Navigation attempt ${attempt} failed: ${err.message}`);
-      if (attempt === 3) {
-        console.error("❌ All navigation attempts failed");
-        await browser.close();
-        return;
-      }
-      await page.waitForTimeout(5000);
-    }
-  }
+  await page.goto("https://nepalstock.com.np/floor-sheet", {
+    waitUntil: "networkidle2",
+  });
 
   try {
-    console.log("🔍 Waiting for filter elements...");
-    await page.waitForSelector("div.box__filter--field", { timeout: 60000 });
-    
-    console.log("📊 Setting rows per page to 500...");
+    await page.waitForSelector("div.box__filter--field select", { timeout: 20000 });
     await page.select("div.box__filter--field select", "500");
 
-    const btn = await page.waitForSelector("button.box__filter--search", { timeout: 60000 });
-    
-    console.log("🔄 Applying filter...");
-    await btn.click();
-    
-    // Wait for table content to load
-    console.log("⏳ Waiting for table data...");
-    await page.waitForFunction(
-      () => {
-        const rows = document.querySelectorAll("table.table-striped tbody tr");
-        return rows.length >= 500 && rows[0].querySelector("td")?.textContent?.trim() !== '';
-      },
-      { timeout: 120000, polling: 1000 }
-    );
+    const btn = await page.waitForSelector("button.box__filter--search", { timeout: 20000 });
 
-    await page.waitForTimeout(1000);
-
+    await Promise.all([
+      btn.click(),
+      page.waitForFunction(
+        () => document.querySelectorAll("table.table-striped tbody tr").length > 0,
+        { timeout: 30000 }
+      ),
+    ]);
   } catch (e) {
-    console.error(`❌ Initialization failed: ${e.message}`);
+    console.warn(`❌ Failed to initialize table: ${e.message}`);
     await browser.close();
     return;
   }
@@ -106,14 +64,9 @@ puppeteer.use(StealthPlugin());
   while (true) {
     console.log(`➡️ Scraping page ${currentPage}`);
 
-    try {
-      await page.waitForSelector("table.table-striped tbody tr", {
-        timeout: 30000,
-      });
-    } catch (e) {
-      console.warn(`⚠️ Timed out waiting for rows: ${e.message}`);
-      break;
-    }
+    await page.waitForSelector("table.table-striped tbody tr", {
+      timeout: 20000,
+    });
 
     const rows = await page.evaluate(() => {
       return Array.from(document.querySelectorAll("table.table-striped tbody tr"))
@@ -127,46 +80,37 @@ puppeteer.use(StealthPlugin());
         .filter((row) => row.length > 0);
     });
 
-    if (rows.length === 0) {
-      console.log("⚠️ No rows found. Ending scraping.");
-      break;
-    }
-
     rows.forEach((row) => logger.write(`${row}\n`));
     console.log(`✅ Page ${currentPage}: Extracted ${rows.length} rows`);
 
-    // Check if "Next" button is disabled
     const isNextDisabled = await page.evaluate(() => {
       const next = document.querySelector("li.pagination-next");
       return next?.classList.contains("disabled");
     });
 
     if (isNextDisabled) {
-      console.log("⛔ 'Next' button disabled. Scraping complete.");
+      console.log("⛔ 'Next' button is disabled. Ending scraping.");
       break;
     }
 
     try {
-      console.log("⏭️ Navigating to next page...");
-      await page.evaluate(() => {
-        document.querySelector("li.pagination-next > a").click();
-      });
-      
-      // Wait for new page to load
+      const prevContent = await page.$eval("table.table-striped tbody", el => el.innerText);
+
+      await page.click("li.pagination-next > a");
+
       await page.waitForFunction(
-        (currentPageCount) => {
-          const newPageCount = document.querySelectorAll("table.table-striped tbody tr").length;
-          return newPageCount > 0 && newPageCount !== currentPageCount;
+        (oldText) => {
+          const newText = document.querySelector("table.table-striped tbody")?.innerText;
+          return newText && newText !== oldText;
         },
-        { timeout: 60000, polling: 1000 },
-        rows.length  // Pass current row count as argument
+        { timeout: 10000 },
+        prevContent
       );
-      
-      // Human-like delay
+
       await page.waitForTimeout(Math.floor(Math.random() * 8000) + 2000);
       currentPage++;
     } catch (e) {
-      console.warn(`⚠️ Page navigation failed: ${e.message}`);
+      console.warn(`⚠️ Failed to go to next page: ${e.message}`);
       break;
     }
   }
