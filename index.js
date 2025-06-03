@@ -160,7 +160,7 @@ puppeteer.use(StealthPlugin());
 
       // Introduce random delay (2–10 seconds) to mimic human behavior
       const delay = Math.floor(Math.random() * 8000) + 2000;
-      await page.waitForTimeout(delay);
+      await new Promise(resolve => setTimeout(resolve, delay));
 
       currentPage++; // Move to next page
     } catch (e) {
