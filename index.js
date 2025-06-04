@@ -1,4 +1,4 @@
-// index.js — NEPSE Floor Sheet Scraper
+// index.js — NEPSE Floor Sheet Scraper (fixed)
 
 const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
@@ -15,11 +15,8 @@ puppeteer.use(StealthPlugin());
   });
 
   const page = await browser.newPage();
-
-  // Set random user agent
   await page.setUserAgent(randomUseragent.getRandom());
 
-  // Block heavy resources
   await page.setRequestInterception(true);
   page.on("request", (req) => {
     const type = req.resourceType();
@@ -34,56 +31,53 @@ puppeteer.use(StealthPlugin());
   const csvFile = `floor_sheet_data_${dateStamp}.csv`;
   const logger = fs.createWriteStream(csvFile, { flags: "a" });
 
-  // Write headers if new
   if (!fs.existsSync(csvFile) || fs.statSync(csvFile).size === 0) {
     logger.write("SN,ContractNo,Symbol,Buyer,Seller,Quantity,Rate,Amount\n");
   }
 
-  console.log("🔄 Navigating to floor sheet page...");
   try {
+    console.log("🔄 Navigating to floor sheet page...");
     await page.goto("https://nepalstock.com.np/floor-sheet", {
       waitUntil: "networkidle2",
       timeout: 60000,
     });
 
-    // Ensure Angular has rendered content
+    // Wait until Angular has fully rendered
     await page.waitForFunction(
-      () =>
-        document.querySelector("app-root")?.innerText.trim().length > 1000,
+      () => document.querySelector("app-root")?.innerText.length > 1000,
       { timeout: 30000 }
     );
+
+    // Wait for dropdown to be present
+    await page.waitForSelector("div.box__filter--field select", {
+      timeout: 20000,
+    });
+
+    // Select 500 rows from dropdown
+    await page.select("div.box__filter--field select", "500");
+
+    // Wait for the Search button and click
+    const searchBtn = await page.waitForSelector("button.box__filter--search", {
+      timeout: 20000,
+    });
+
+    await Promise.all([
+      searchBtn.click(),
+      page.waitForFunction(() => {
+        const rows = document.querySelectorAll("table.table-striped tbody tr");
+        return rows.length >= 500;
+      }, { timeout: 30000 })
+    ]);
+
   } catch (e) {
-    console.error("❌ Failed to load floor sheet:", e.message);
+    console.error("❌ Initial page setup failed:", e.message);
     await page.screenshot({ path: "error_screenshot.png" });
     fs.writeFileSync("error_dump.html", await page.content());
     await browser.close();
     process.exit(1);
   }
 
-  // Select 500 rows if possible
-  try {
-    await page.waitForSelector("div.box__filter--field select", {
-      timeout: 20000,
-    });
-
-    await page.select("div.box__filter--field select", "500");
-
-    const btn = await page.waitForSelector("button.box__filter--search", {
-      timeout: 20000,
-    });
-
-    await Promise.all([
-      btn.click(),
-      page.waitForFunction(
-        () =>
-          document.querySelectorAll("table.table-striped tbody tr").length > 0,
-        { timeout: 30000 }
-      ),
-    ]);
-  } catch (e) {
-    console.warn("⚠️ Could not select 500 rows:", e.message);
-  }
-
+  // Begin scraping pages
   let currentPage = 1;
 
   while (true) {
@@ -97,26 +91,20 @@ puppeteer.use(StealthPlugin());
       const rows = await page.evaluate(() => {
         return Array.from(
           document.querySelectorAll("table.table-striped tbody tr")
-        )
-          .map((tr) =>
-            Array.from(tr.querySelectorAll("td"))
-              .map((td) =>
-                `"${td.textContent
-                  .trim()
-                  .replace(/"/g, '""')
-                  .replace(/\.00$/, "")}"`
-              )
-              .join(",")
-          )
-          .filter((row) => row.length > 0);
+        ).map(tr =>
+          Array.from(tr.querySelectorAll("td"))
+            .map(td =>
+              `"${td.textContent.trim().replace(/"/g, '""').replace(/\.00$/, "")}"`
+            ).join(",")
+        ).filter(row => row.length > 0);
       });
 
-      rows.forEach((row) => logger.write(`${row}\n`));
       console.log(`✅ Page ${currentPage}: Extracted ${rows.length} rows`);
+      rows.forEach(row => logger.write(`${row}\n`));
 
       const isNextDisabled = await page.evaluate(() => {
-        const nextLi = document.querySelector("li.pagination-next");
-        return nextLi?.classList.contains("disabled");
+        const nextBtn = document.querySelector("li.pagination-next");
+        return nextBtn?.classList.contains("disabled");
       });
 
       if (isNextDisabled) {
@@ -124,23 +112,22 @@ puppeteer.use(StealthPlugin());
         break;
       }
 
+      // Go to next page and wait for it to load
       await Promise.all([
         page.click("li.pagination-next > a"),
-        page.waitForFunction(
-          () =>
-            document.querySelectorAll("table.table-striped tbody tr").length >
-            0,
-          { timeout: 30000 }
-        ),
+        page.waitForFunction(() => {
+          const rows = document.querySelectorAll("table.table-striped tbody tr");
+          return rows.length > 0;
+        }, { timeout: 30000 }),
       ]);
 
-      // Wait randomly between 2–5 sec
+      // Delay to simulate human
       const delay = Math.floor(Math.random() * 3000) + 2000;
-      await new Promise((r) => setTimeout(r, delay));
+      await new Promise(r => setTimeout(r, delay));
 
       currentPage++;
     } catch (e) {
-      console.warn(`⚠️ Error during pagination: ${e.message}`);
+      console.warn(`⚠️ Error on page ${currentPage}: ${e.message}`);
       break;
     }
   }
