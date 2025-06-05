@@ -1,4 +1,4 @@
-// index.js — NEPSE Floor Sheet Scraper (page 1 fix)
+// index.js — NEPSE Floor Sheet Scraper (robust pagination fix)
 
 const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
@@ -44,7 +44,7 @@ puppeteer.use(StealthPlugin());
 
     await page.waitForFunction(
       () => document.querySelector("app-root")?.innerText.trim().length > 1000,
-      { timeout: 30000 }
+      { timeout: 40000 }
     );
   } catch (e) {
     console.error("❌ Failed to load floor sheet:", e.message);
@@ -54,12 +54,9 @@ puppeteer.use(StealthPlugin());
     process.exit(1);
   }
 
-  // Select 500 rows if possible
+  // Select 500 rows if available
   try {
-    await page.waitForSelector("div.box__filter--field select", {
-      timeout: 20000,
-    });
-
+    await page.waitForSelector("div.box__filter--field select", { timeout: 20000 });
     await page.select("div.box__filter--field select", "500");
 
     const btn = await page.waitForSelector("button.box__filter--search", {
@@ -71,7 +68,7 @@ puppeteer.use(StealthPlugin());
       page.waitForFunction(
         () => {
           const rows = document.querySelectorAll("table.table-striped tbody tr");
-          return rows.length >= 100; // wait for >100 rows to ensure "500" has rendered
+          return rows.length >= 100;
         },
         { timeout: 30000 }
       ),
@@ -86,9 +83,7 @@ puppeteer.use(StealthPlugin());
     console.log(`➡️ Scraping page ${currentPage}`);
 
     try {
-      await page.waitForSelector("table.table-striped tbody tr", {
-        timeout: 20000,
-      });
+      await page.waitForSelector("table.table-striped tbody tr", { timeout: 20000 });
 
       const rows = await page.evaluate(() => {
         return Array.from(
@@ -110,13 +105,9 @@ puppeteer.use(StealthPlugin());
       rows.forEach((row) => logger.write(`${row}\n`));
       console.log(`✅ Page ${currentPage}: Extracted ${rows.length} rows`);
 
-      const isNextDisabled = await page.evaluate(() => {
-        const nextLi = document.querySelector("li.pagination-next");
-        return nextLi?.classList.contains("disabled");
-      });
-
-      if (isNextDisabled) {
-        console.log("⛔ No more pages. Scraping complete.");
+      // Stop if row count is less than 500 (end of data)
+      if (rows.length < 500) {
+        console.log(`⛔ Last page detected (only ${rows.length} rows). Scraping complete.`);
         break;
       }
 
