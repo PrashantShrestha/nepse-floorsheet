@@ -1,24 +1,24 @@
-// index.js — NEPSE Floor Sheet Scraper (stable, safe, and CI-friendly)
+// index.js — NEPSE Floor Sheet Scraper with loop detection and last-page check
 
 const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const fs = require("fs");
 const randomUseragent = require("random-useragent");
 
+// Use puppeteer stealth to evade bot detection
 puppeteer.use(StealthPlugin());
 
 (async () => {
-  const isGitHub = !!process.env.GITHUB_ACTIONS;
-
   const browser = await puppeteer.launch({
-    headless: isGitHub ? true : "new",
+    headless: true,
+    defaultViewport: null,
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
 
   const page = await browser.newPage();
   await page.setUserAgent(randomUseragent.getRandom());
 
-  // Block unnecessary resources for faster loading
+  // Block unnecessary resources for speed
   await page.setRequestInterception(true);
   page.on("request", (req) => {
     const type = req.resourceType();
@@ -29,12 +29,10 @@ puppeteer.use(StealthPlugin());
     }
   });
 
-  // Prepare file name with current date
   const dateStamp = new Date().toISOString().split("T")[0];
   const csvFile = `floor_sheet_data_${dateStamp}.csv`;
   const logger = fs.createWriteStream(csvFile, { flags: "a" });
 
-  // Write CSV header if the file is new or empty
   if (!fs.existsSync(csvFile) || fs.statSync(csvFile).size === 0) {
     logger.write("SN,ContractNo,Symbol,Buyer,Seller,Quantity,Rate,Amount\n");
   }
@@ -58,12 +56,12 @@ puppeteer.use(StealthPlugin());
     process.exit(1);
   }
 
-  // Try selecting 500 rows per page
   try {
     await page.waitForSelector("div.box__filter--field select", { timeout: 20000 });
     await page.select("div.box__filter--field select", "500");
 
     const btn = await page.waitForSelector("button.box__filter--search", { timeout: 20000 });
+
     await Promise.all([
       btn.click(),
       page.waitForFunction(
@@ -96,17 +94,16 @@ puppeteer.use(StealthPlugin());
       });
 
       if (rows.length === 0) {
-        console.log("⛔ No rows found. Possibly end of data.");
+        console.log("⛔ No rows found. Likely end of data.");
         break;
       }
 
-      // Repeated ContractNo detection
-      const firstContractNo = rows[0][1]; // ContractNo is 2nd column
+      const firstContractNo = rows[0][1];
       if (seenContracts.has(firstContractNo)) {
         repeatedPages++;
-        console.warn(`⚠️ Repeated ContractNo (${firstContractNo}) detected. Count: ${repeatedPages}`);
+        console.warn(`⚠️ Repeated ContractNo (${firstContractNo}) detected. Repeated ${repeatedPages} time(s).`);
         if (repeatedPages >= 2) {
-          console.log("🛑 Same page data repeated. Ending scraping to avoid infinite loop.");
+          console.log("🛑 Detected page repetition. Ending scraping.");
           break;
         }
       } else {
@@ -120,29 +117,27 @@ puppeteer.use(StealthPlugin());
 
       console.log(`✅ Page ${currentPage}: Extracted ${rows.length} rows`);
 
-      // 🛑 Check if next page button exists
-      const nextBtn = await page.$("li.pagination-next > a");
-      if (!nextBtn) {
+      // ✅ Check if "Next" button exists before trying to click it
+      const nextButton = await page.$("li.pagination-next > a");
+      if (!nextButton) {
         console.log("⛔ No 'Next' button found. Reached last page.");
         break;
       }
 
-      // Proceed to next page
       await Promise.all([
-        nextBtn.click(),
+        nextButton.click(),
         page.waitForFunction(
           () => document.querySelectorAll("table.table-striped tbody tr").length > 0,
           { timeout: 30000 }
         ),
       ]);
 
-      // Random delay to avoid detection
       const delay = Math.floor(Math.random() * 3000) + 2000;
       await new Promise((r) => setTimeout(r, delay));
 
       currentPage++;
     } catch (e) {
-      console.warn(`⚠️ Error during scraping page ${currentPage}: ${e.message}`);
+      console.warn(`⚠️ Unexpected error on page ${currentPage}: ${e.message}`);
       break;
     }
   }
