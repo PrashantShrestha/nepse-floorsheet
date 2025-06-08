@@ -1,4 +1,4 @@
-// index.js — NEPSE Floor Sheet Scraper with loop detection and detailed comments
+// index.js — NEPSE Floor Sheet Scraper with loop detection and last-page fix
 
 const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
@@ -148,6 +148,13 @@ puppeteer.use(StealthPlugin());
 
       currentPage++;
     } catch (e) {
+      // ✅ Suppress "No element found for selector" error as expected end of data
+      if (e.message.includes("No element found for selector: li.pagination-next > a")) {
+        console.log("⛔ 'Next' button not found. Reached last page.");
+        break;
+      }
+
+      // Other unexpected errors
       console.warn(`⚠️ Error during scraping page ${currentPage}: ${e.message}`);
       break;
     }
