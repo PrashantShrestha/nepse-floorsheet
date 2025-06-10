@@ -138,7 +138,7 @@ puppeteer.use(StealthPlugin());
         page.click("li.pagination-next > a"),
         page.waitForFunction(
           () => document.querySelectorAll("table.table-striped tbody tr").length > 0,
-          { timeout: 30000 }
+          { timeout: 45000 }
         ),
       ]);
 
