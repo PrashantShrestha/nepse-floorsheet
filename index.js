@@ -53,7 +53,7 @@ puppeteer.use(StealthPlugin());
     // Wait until page content is sufficiently loaded
     await page.waitForFunction(
       () => document.querySelector("app-root")?.innerText.trim().length > 1000,
-      { timeout: 40000 }
+      { timeout: 55000 }
     );
   } catch (e) {
     console.error("❌ Failed to load floor sheet:", e.message);
@@ -74,7 +74,7 @@ puppeteer.use(StealthPlugin());
       btn.click(),
       page.waitForFunction(
         () => document.querySelectorAll("table.table-striped tbody tr").length >= 100,
-        { timeout: 30000 }
+        { timeout: 40000 }
       ),
     ]);
   } catch (e) {
@@ -92,7 +92,7 @@ puppeteer.use(StealthPlugin());
 
     try {
       // Wait for the table to load
-      await page.waitForSelector("table.table-striped tbody tr", { timeout: 20000 });
+      await page.waitForSelector("table.table-striped tbody tr", { timeout: 40000 });
 
       // Extract rows as arrays of cell values (no quotes yet)
       const rows = await page.evaluate(() => {
@@ -143,7 +143,7 @@ puppeteer.use(StealthPlugin());
       ]);
 
       // Delay next page scrape to mimic human behavior
-      const delay = Math.floor(Math.random() * 3000) + 2000;
+      const delay = Math.floor(Math.random() * 4500) + 2000;
       await new Promise((r) => setTimeout(r, delay));
 
       currentPage++;
