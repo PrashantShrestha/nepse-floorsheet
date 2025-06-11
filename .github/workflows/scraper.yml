@@ -2,7 +2,7 @@ name: Run Puppeteer Script on Schedule
 
 on:
   schedule:
-    - cron: '15 12 * * 0-4'    # Runs at 10:30 UTC (4:15 PM Nepal Time) update to 6:00 Pm Nepal Time
+    - cron: '00 18 * * 0-4'    # Runs  6:00 PM Nepal Time
   workflow_dispatch:
 
 jobs:
