@@ -1,15 +1,11 @@
-// index.js — NEPSE Floor Sheet Scraper with loop detection and last-page fix
-
 const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const fs = require("fs");
 const randomUseragent = require("random-useragent");
 
-// Use puppeteer stealth to evade bot detection
 puppeteer.use(StealthPlugin());
 
 (async () => {
-  // Launch headless browser with recommended flags for GitHub Actions
   const browser = await puppeteer.launch({
     headless: true,
     defaultViewport: null,
@@ -17,11 +13,9 @@ puppeteer.use(StealthPlugin());
   });
 
   const page = await browser.newPage();
-
-  // Set a random user-agent to mimic real browsers
   await page.setUserAgent(randomUseragent.getRandom());
 
-  // Block unnecessary resources for speed
+  // Block images, fonts, and other unused resources
   await page.setRequestInterception(true);
   page.on("request", (req) => {
     const type = req.resourceType();
@@ -32,17 +26,14 @@ puppeteer.use(StealthPlugin());
     }
   });
 
-  // Prepare CSV filename with today's date
   const dateStamp = new Date().toISOString().split("T")[0];
   const csvFile = `floor_sheet_data_${dateStamp}.csv`;
   const logger = fs.createWriteStream(csvFile, { flags: "a" });
 
-  // Write CSV header if file is new or empty
   if (!fs.existsSync(csvFile) || fs.statSync(csvFile).size === 0) {
     logger.write("SN,ContractNo,Symbol,Buyer,Seller,Quantity,Rate,Amount\n");
   }
 
-  // Go to NEPSE floor sheet page
   console.log("🔄 Navigating to floor sheet page...");
   try {
     await page.goto("https://nepalstock.com.np/floor-sheet", {
@@ -50,7 +41,6 @@ puppeteer.use(StealthPlugin());
       timeout: 60000,
     });
 
-    // Wait until page content is sufficiently loaded
     await page.waitForFunction(
       () => document.querySelector("app-root")?.innerText.trim().length > 1000,
       { timeout: 55000 }
@@ -63,7 +53,6 @@ puppeteer.use(StealthPlugin());
     process.exit(1);
   }
 
-  // Try selecting 500 rows per page if available
   try {
     await page.waitForSelector("div.box__filter--field select", { timeout: 20000 });
     await page.select("div.box__filter--field select", "500");
@@ -81,86 +70,96 @@ puppeteer.use(StealthPlugin());
     console.warn("⚠️ Could not select 500 rows:", e.message);
   }
 
-  // Initialize page number and loop detection variables
   let currentPage = 1;
-  let seenContracts = new Set(); // Set of seen ContractNos (2nd column)
-  let repeatedPages = 0;         // Count of how many times the same ContractNo was seen
+  const seenContracts = new Set();
+  let repeatedPages = 0;
+  let lastPageFirstContract = null;
 
-  // Start scraping pages in a loop
   while (true) {
     console.log(`➡️ Scraping page ${currentPage}`);
 
     try {
-      // Wait for the table to load
       await page.waitForSelector("table.table-striped tbody tr", { timeout: 40000 });
 
-      // Extract rows as arrays of cell values (no quotes yet)
       const rows = await page.evaluate(() => {
         return Array.from(document.querySelectorAll("table.table-striped tbody tr"))
-          .map((tr) =>
-            Array.from(tr.querySelectorAll("td")).map((td) =>
+          .map(tr =>
+            Array.from(tr.querySelectorAll("td")).map(td =>
               td.textContent.trim().replace(/"/g, '""').replace(/\.00$/, "")
             )
           )
-          .filter((row) => row.length > 0);
+          .filter(row => row.length > 0);
       });
 
-      // If table is empty, assume we're done
       if (rows.length === 0) {
         console.log("⛔ No rows found. Likely end of data.");
         break;
       }
 
-      // Get ContractNo (2nd column) from first row to detect repetition
-      const firstContractNo = rows[0][1];
-      if (seenContracts.has(firstContractNo)) {
+      // Extract ContractNos for this page
+      const contractNos = rows.map(row => row[1]);
+      const contractSet = new Set(contractNos);
+
+      // Check for high overlap (90%+) with already seen contracts
+      const overlap = [...contractSet].filter(no => seenContracts.has(no)).length;
+
+      if (currentPage > 3 && overlap / contractSet.size > 0.9) {
         repeatedPages++;
-        console.warn(`⚠️ Repeated ContractNo (${firstContractNo}) detected. Repeated ${repeatedPages} time(s).`);
-        // Stop if same ContractNo seen more than once (prevents infinite loop)
+        console.warn(`⚠️ ${overlap}/${contractSet.size} ContractNos already seen. Repetition count: ${repeatedPages}`);
         if (repeatedPages >= 2) {
-          console.log("🛑 Detected page repetition. Ending scraping.");
+          console.log("🛑 Likely stuck in loop. Ending scraping.");
           break;
         }
       } else {
-        seenContracts.add(firstContractNo);
-        repeatedPages = 0; // reset repetition tracker
+        repeatedPages = 0;
       }
 
-      // Write rows to CSV file
-      rows.forEach((cols) => {
+      // Add all contracts to global set
+      contractSet.forEach(no => seenContracts.add(no));
+
+      // Write rows to CSV
+      rows.forEach(cols => {
         logger.write(`"${cols.join('","')}"\n`);
       });
 
       console.log(`✅ Page ${currentPage}: Extracted ${rows.length} rows`);
 
-      // Click "Next" and wait for table to reload
-      await Promise.all([
-        page.click("li.pagination-next > a"),
-        page.waitForFunction(
-          () => document.querySelectorAll("table.table-striped tbody tr").length > 0,
-          { timeout: 45000 }
-        ),
-      ]);
+      const firstContract = contractNos[0];
 
-      // Delay next page scrape to mimic human behavior
-      const delay = Math.floor(Math.random() * 4500) + 2000;
-      await new Promise((r) => setTimeout(r, delay));
-
-      currentPage++;
-    } catch (e) {
-      // ✅ Suppress "No element found for selector" error as expected end of data
-      if (e.message.includes("No element found for selector: li.pagination-next > a")) {
+      // Try click next page
+      const nextButton = await page.$("li.pagination-next > a");
+      if (!nextButton) {
         console.log("⛔ 'Next' button not found. Reached last page.");
         break;
       }
 
-      // Other unexpected errors
+      await Promise.all([
+        nextButton.click(),
+        page.waitForFunction(
+          (prev) => {
+            const firstRow = document.querySelector("table.table-striped tbody tr");
+            const newContract = firstRow?.children?.[1]?.textContent?.trim();
+            return newContract && newContract !== prev;
+          },
+          { timeout: 45000 },
+          firstContract
+        ),
+      ]);
+
+      const delay = Math.floor(Math.random() * 4500) + 2000;
+      await new Promise(res => setTimeout(res, delay));
+
+      currentPage++;
+    } catch (e) {
+      if (e.message.includes("No element found for selector: li.pagination-next > a")) {
+        console.log("⛔ 'Next' button not found. Reached last page.");
+        break;
+      }
       console.warn(`⚠️ Error during scraping page ${currentPage}: ${e.message}`);
       break;
     }
   }
 
-  // Clean up
   logger.close();
   await browser.close();
   console.log("🎉 Finished scraping all available pages.");
