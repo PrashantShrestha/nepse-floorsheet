@@ -2,7 +2,7 @@ name: Run Puppeteer Script on Schedule
 
 on:
   schedule:
-    - cron: '00 18 * * 0-4'    # Runs  6:00 PM Nepal Time
+    - cron: '15 12 * * 0-4'  # 6:00 PM NPT, Sunday to Thursday
   workflow_dispatch:
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-        
+
       - name: Skip Fridays and Saturdays
         run: |
           day=$(date -u +%u)
@@ -31,7 +31,6 @@ jobs:
 
       - name: Decode service-account.json from base64
         run: echo "$SERVICE_ACCOUNT_BASE64" | base64 -d > service-account.json
-        shell: bash
         env:
           SERVICE_ACCOUNT_BASE64: ${{ secrets.SERVICE_ACCOUNT_BASE64 }}
 
@@ -43,9 +42,9 @@ jobs:
         env:
           DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
 
-      # ✅ Upload screenshots for debugging (optional)
+      # Optional: Upload screenshots for debugging
       # - name: Upload debug screenshots
-      #   if: always() # Always upload even if the script fails
+      #   if: always()
       #   uses: actions/upload-artifact@v4
       #   with:
       #     name: pagination-screenshots
