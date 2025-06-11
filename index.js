@@ -1,8 +1,11 @@
+// index.js — NEPSE Floor Sheet Scraper (stable version for GitHub Actions)
+
 const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const fs = require("fs");
 const randomUseragent = require("random-useragent");
 
+// Enable stealth mode
 puppeteer.use(StealthPlugin());
 
 (async () => {
@@ -15,7 +18,7 @@ puppeteer.use(StealthPlugin());
   const page = await browser.newPage();
   await page.setUserAgent(randomUseragent.getRandom());
 
-  // Block images, fonts, and other unused resources
+  // Block unnecessary resources to speed up scraping
   await page.setRequestInterception(true);
   page.on("request", (req) => {
     const type = req.resourceType();
@@ -34,6 +37,7 @@ puppeteer.use(StealthPlugin());
     logger.write("SN,ContractNo,Symbol,Buyer,Seller,Quantity,Rate,Amount\n");
   }
 
+  // Visit the floor sheet page
   console.log("🔄 Navigating to floor sheet page...");
   try {
     await page.goto("https://nepalstock.com.np/floor-sheet", {
@@ -53,12 +57,12 @@ puppeteer.use(StealthPlugin());
     process.exit(1);
   }
 
+  // Try selecting 500 rows per page
   try {
     await page.waitForSelector("div.box__filter--field select", { timeout: 20000 });
     await page.select("div.box__filter--field select", "500");
 
     const btn = await page.waitForSelector("button.box__filter--search", { timeout: 20000 });
-
     await Promise.all([
       btn.click(),
       page.waitForFunction(
@@ -73,14 +77,15 @@ puppeteer.use(StealthPlugin());
   let currentPage = 1;
   const seenContracts = new Set();
   let repeatedPages = 0;
-  let lastPageFirstContract = null;
 
   while (true) {
     console.log(`➡️ Scraping page ${currentPage}`);
 
     try {
+      // Wait for table to load
       await page.waitForSelector("table.table-striped tbody tr", { timeout: 40000 });
 
+      // Extract rows and contract numbers
       const rows = await page.evaluate(() => {
         return Array.from(document.querySelectorAll("table.table-striped tbody tr"))
           .map(tr =>
@@ -96,56 +101,45 @@ puppeteer.use(StealthPlugin());
         break;
       }
 
-      // Extract ContractNos for this page
+      // Track contract numbers on this page
       const contractNos = rows.map(row => row[1]);
       const contractSet = new Set(contractNos);
-
-      // Check for high overlap (90%+) with already seen contracts
       const overlap = [...contractSet].filter(no => seenContracts.has(no)).length;
 
+      // If high overlap is detected (90%+), likely end or loop
       if (currentPage > 3 && overlap / contractSet.size > 0.9) {
         repeatedPages++;
-        console.warn(`⚠️ ${overlap}/${contractSet.size} ContractNos already seen. Repetition count: ${repeatedPages}`);
+        console.warn(`⚠️ ${overlap}/${contractSet.size} ContractNos already seen. Repeated ${repeatedPages} time(s).`);
         if (repeatedPages >= 2) {
-          console.log("🛑 Likely stuck in loop. Ending scraping.");
+          console.log("🛑 Likely page repetition. Ending scraping.");
           break;
         }
       } else {
         repeatedPages = 0;
       }
 
-      // Add all contracts to global set
+      // Save contract numbers and write CSV rows
       contractSet.forEach(no => seenContracts.add(no));
-
-      // Write rows to CSV
-      rows.forEach(cols => {
-        logger.write(`"${cols.join('","')}"\n`);
-      });
+      rows.forEach(cols => logger.write(`"${cols.join('","')}"\n`));
 
       console.log(`✅ Page ${currentPage}: Extracted ${rows.length} rows`);
 
-      const firstContract = contractNos[0];
-
-      // Try click next page
+      // Find and click next button
       const nextButton = await page.$("li.pagination-next > a");
       if (!nextButton) {
         console.log("⛔ 'Next' button not found. Reached last page.");
         break;
       }
 
-      await Promise.all([
-        nextButton.click(),
-        page.waitForFunction(
-          (prev) => {
-            const firstRow = document.querySelector("table.table-striped tbody tr");
-            const newContract = firstRow?.children?.[1]?.textContent?.trim();
-            return newContract && newContract !== prev;
-          },
-          { timeout: 45000 },
-          firstContract
-        ),
-      ]);
+      await nextButton.click();
 
+      // Wait for rows to reload
+      await page.waitForFunction(() => {
+        const rows = document.querySelectorAll("table.table-striped tbody tr");
+        return rows.length > 0;
+      }, { timeout: 45000 });
+
+      // Add short delay to reduce load on server
       const delay = Math.floor(Math.random() * 4500) + 2000;
       await new Promise(res => setTimeout(res, delay));
 
