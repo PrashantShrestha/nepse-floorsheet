@@ -1,4 +1,4 @@
-// index.js — Stable NEPSE Floor Sheet Scraper
+// index.js — Stable NEPSE Floor Sheet Scraper 2025-06-23
 
 const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
@@ -52,25 +52,31 @@ puppeteer.use(StealthPlugin());
     process.exit(1);
   }
 
+  // Reliable dropdown selection with retries
   try {
     await page.waitForSelector("div.box__filter--field select", { timeout: 20000 });
-    await page.select("div.box__filter--field select", "500");
-
-    const btn = await page.waitForSelector("button.box__filter--search", { timeout: 20000 });
-    await Promise.all([
-      btn.click(),
-      page.waitForFunction(
-        () => document.querySelectorAll("table.table-striped tbody tr").length >= 100,
-        { timeout: 40000 }
-      ),
-    ]);
+    for (let i = 0; i < 3; i++) {
+      await page.select("div.box__filter--field select", "500");
+      const btn = await page.waitForSelector("button.box__filter--search", { timeout: 20000 });
+      await Promise.all([
+        btn.click(),
+        page.waitForFunction(
+          () => document.querySelectorAll("table.table-striped tbody tr").length >= 100,
+          { timeout: 40000 }
+        ),
+      ]);
+      const rowCount = await page.$$eval("table.table-striped tbody tr", trs => trs.length);
+      if (rowCount >= 100) break;
+      console.warn("⚠️ Retry selecting 500 rows, attempt:", i + 1);
+      await new Promise(res => setTimeout(res, 2000));
+    }
   } catch (e) {
-    console.warn("⚠️ Could not select 500 rows per page:", e.message);
+    console.warn("⚠️ Could not reliably select 500 rows:", e.message);
   }
 
   let currentPage = 1;
   const seenContracts = new Set();
-  let retryCount = 0;
+  let repeatedPages = 0;
 
   while (true) {
     console.log(`➡️ Scraping page ${currentPage}`);
@@ -94,23 +100,21 @@ puppeteer.use(StealthPlugin());
 
       const contractNos = rows.map((r) => r[1]);
       const contractSet = new Set(contractNos);
-      const allSeen = [...contractSet].every((c) => seenContracts.has(c));
+      const overlapCount = [...contractSet].filter(no => seenContracts.has(no)).length;
 
-      if (allSeen) {
-        retryCount++;
-        console.warn(`⚠️ All ${contractSet.size} ContractNos already seen. Retry ${retryCount}/3`);
-        if (retryCount >= 3) {
-          console.log("🛑 Page repetition detected. Ending scraping.");
+      if (contractSet.size > 0 && overlapCount === contractSet.size) {
+        repeatedPages++;
+        console.warn(`⚠️ Full repeat detected on page ${currentPage}. Repeated ${repeatedPages} time(s)`);
+        if (repeatedPages >= 2) {
+          console.log("🛑 Ending due to repeated identical pages.");
           break;
         }
       } else {
-        retryCount = 0;
+        repeatedPages = 0;
       }
 
-      contractSet.forEach((no) => seenContracts.add(no));
-      rows.forEach((cols) => {
-        logger.write(`"${cols.join('","')}"\n`);
-      });
+      contractSet.forEach(no => seenContracts.add(no));
+      rows.forEach(cols => logger.write(`"${cols.join('","')}"\n`));
 
       console.log(`✅ Page ${currentPage}: Extracted ${rows.length} rows`);
 
@@ -120,29 +124,17 @@ puppeteer.use(StealthPlugin());
       }
 
       const nextButton = await page.$("li.pagination-next > a");
-      if (!nextButton) {
-        console.log("⛔ 'Next' button not found. Reached last page.");
+      const isDisabled = await page.$eval("li.pagination-next", el => el.classList.contains("disabled")).catch(() => false);
+
+      if (!nextButton || isDisabled) {
+        console.log("⛔ 'Next' button not available or disabled. Reached last page.");
         break;
       }
 
-      const currentFirst = rows[0][1];
       await nextButton.click();
 
-      try {
-        await page.waitForFunction(
-          (prevFirst) => {
-            const newFirst = document.querySelector("table.table-striped tbody tr td:nth-child(2)");
-            return newFirst && newFirst.textContent.trim() !== prevFirst;
-          },
-          { timeout: 30000 },
-          currentFirst
-        );
-      } catch {
-        console.warn("⚠️ First contract did not change after next click.");
-      }
-
       const delay = Math.floor(Math.random() * 4000) + 2000;
-      await new Promise((res) => setTimeout(res, delay));
+      await new Promise(res => setTimeout(res, delay));
 
       currentPage++;
     } catch (e) {
